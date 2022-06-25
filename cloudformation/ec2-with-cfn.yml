@@ -1,0 +1,69 @@
+Parameters:
+  LinuxAmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+  
+  Instance: 
+    Type: String 
+    Default: t2.micro
+    Description: Default EC2 instance Type.
+  
+  Az:
+    Type: String
+    Default: us-east-1a
+    Description: Default availbility zone.
+
+  
+Resources:
+  MyInstanceWithParameters:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LinuxAmiId
+      InstanceType: !Ref Instance
+      AvailabilityZone: !Ref Az
+      SecurityGroups:
+       - !Ref SecurityGroup
+      BlockDeviceMappings:
+       - DeviceName: "/dev/xvdb"
+         Ebs:
+           VolumeType: "gp2" #general purpose disks.
+           DeleteOnTermination: "false" 
+           VolumeSize: "20"
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap 
+            /opt/aws/bin/cfn-init -s ${AWS::StackId} -r MyInstanceWithParameters --region ${AWS::Region} || Failed 'Package installtion failed' 
+    Metadata:
+      Comment: Install a simple Apache HTTP page
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd: []
+          files:
+            "/var/www/html/index.html":
+              content: |
+                <h1>Simple Web Server !!!</h1>
+              mode: '000644'
+          services:
+            sysvinit:
+              httpd:
+                enabled: 'true'
+                ensureRunning: 'true'
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH and HTTP
+      SecurityGroupIngress:
+       - CidrIp: 0.0.0.0/0
+         FromPort: 22
+         IpProtocol: tcp
+         ToPort: 22
+       - CidrIp: 0.0.0.0/0
+         FromPort: 80
+         IpProtocol: tcp
+         ToPort: 80
+
